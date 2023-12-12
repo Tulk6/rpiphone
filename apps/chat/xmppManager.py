@@ -30,10 +30,14 @@ class XMPPManager:
 
     def getContacts(self):
         contactsDict = {}
+        print(self.address)
         for jid in self.contacts.getItems():
-            contactsDict[jid] = {'name': self.contacts.getName(jid),
-                                     'status': self.contacts.getStatus(jid),
-                                     'show': self.contacts.getShow(jid)}
+            if jid != self.address:
+                print(jid)
+                print(self.contacts.getStatus(jid))
+                contactsDict[jid] = {'name': self.contacts.getName(jid),
+                                        'status': self.contacts.getStatus(jid),
+                                        'show': self.contacts.getShow(jid)}
 
         return contactsDict
 
@@ -46,7 +50,7 @@ class XMPPManager:
     def openClient(self):
         self.client = xmpp.Client(self.server)
         self.client.connect()
-        self.client.auth('itisacrouton', self.password)
+        self.client.auth(self.username, self.password)
         self.client.sendInitPresence()
         self.contacts = self.client.getRoster()
 
