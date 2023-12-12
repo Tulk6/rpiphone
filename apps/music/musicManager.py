@@ -104,7 +104,7 @@ class MusicManager:
         self.indexLibrarySongs()
 
         try:
-            with open(path+'/index.txt', 'r') as file:
+            with open(path+'/index.yaml', 'r') as file:
                 self.playlists = yaml.safe_load(file)
         except FileNotFoundError:
             self.createPlaylistFile()
