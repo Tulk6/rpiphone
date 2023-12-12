@@ -139,7 +139,7 @@ class MainWindow:
         pr.close_window() 
 
 window = MainWindow()
-#window.loadApp('youtube')
+window.loadApp('chat')
 window.mainloop()
 
 ###
