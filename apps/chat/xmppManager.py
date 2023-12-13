@@ -31,9 +31,13 @@ class XMPPManager:
         message = xmpp.Message(to=recipient, body=msg)
         self.client.send(message)
 
+    def sendPresenceToAll(self, status, show=None):
+        for jid in self.contactJids:
+            print(jid)
+            self.sendOnlinePresence(jid, status, show=show)
+
     def sendOnlinePresence(self, recipient, presence, show=None):
         pres = xmpp.Presence(to=recipient, status=presence, show=show)
-        npres = xmpp.Node().setData()
         self.client.send(pres)
 
     def sendUnavailablePresence(self, recipient):

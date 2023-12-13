@@ -5,3 +5,4 @@ out
 __pycache__
 apps/youtube/video.mp4
 apps/youtube/audio.mp3
+apps/chat/chatHistories
