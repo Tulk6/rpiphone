@@ -8,7 +8,6 @@ class ConversationObject:
 
         self.jid = jid
         self.contact = contact
-        print(contact)
 
     def drawName(self, x, y):
         displayName = f'{self.contact["name"]} [{self.jid}]'
@@ -18,7 +17,7 @@ class ConversationObject:
         pr.draw_text_ex(self.mstr.terminalFont, self.contact['status'], (x+4, y+23), 16, 1, self.mstr.WHITE)
 
     def drawOval(self, x, y):
-        pr.draw_rectangle_rounded_lines(pr.Rectangle(x,y, 220, 40), 0.5, 2, 1, self.mstr.WHITE)
+        pr.draw_rectangle_rounded_lines(pr.Rectangle(x,y, 220, 40), 0.4, 2, 1, self.mstr.WHITE)
 
     def draw(self, x, y):
         self.drawOval(x, y)
@@ -36,41 +35,115 @@ class App:
                                                    self.settings['xmpp']['server'])
         
         self.xmppManager.openClient()
-        self.xmppManager.registerHandlers(self.handleMessage, self.handleMessage)
-        self.xmppContacts = self.xmppManager.getContacts()
+        self.xmppManager.sendUnavailablePresence('jamestulk@jabbers.one')#, 'Hello!', show='dnd')
+        self.xmppManager.registerHandlers(self.handleMessage, self.receiveMessage)
 
-        self.loadConversations()
+        self.xmppManager.sendMessage('Is it working?? !', 'jamestulk@jabbers.one')
 
         self.state = 'Conversations' #app should start showing the lsit of contacts
+        self.conversationIndex = 0
 
-        self.background = pr.load_texture('apps/chat/background5.png')
+        self.chatMessages = []
+        
+        self.chatJid, self.chatContact = None, None
+
+        self.showNames = {None: 'online :D',
+                          'xa': 'out D:',
+                          'dnd': 'busy :|',
+                          'away': 'away :('}
+
+        self.background = pr.load_texture('apps/chat/background.png')
+        self.pixelFontHeading = pr.load_font_ex('ui/fonts/invasion2000.regular.ttf', 24, None, 0)
 
     def handleMessage(self, con, event):
-        print(event.getType())
-        print(event.getBody())
+        self.xmppManager.updateContacts()
+        if self.chatJid is not None:
+            self.chatContact = self.xmppManager.contacts[self.chatJid]
+        print(con)
+        print(event)
+        #print(event.getType())
+        #print(event.getBody())
 
-    def loadConversations(self):
-        self.conversations = []
-        for jid, contact in self.xmppContacts.items():
-                self.conversations.append(ConversationObject(jid, contact, self.mstr))
+    def determineDisplayShow(self, contact):
+        if contact['status'] is None and contact['show'] is None: #an offline presence is None status and Show (available is None show)
+            show = 'offline ._.'
+        else:
+            show = self.showNames[contact['show']] #apart from offline/available every other show is unique, so a display string is got from a dictionary
+
+        return show
+    
+    def drawConversation(self, x, y, jid):
+        contact = self.xmppManager.contacts[jid]
+
+        show = self.determineDisplayShow(contact)
+        status = contact['status'] if contact['status'] is not None else ''
+
+        pr.draw_rectangle_rounded_lines(pr.Rectangle(x,y, 220, 40), 0.4, 2, 1, self.mstr.WHITE)
+
+        #displayName = f'{contact["name"]} [{jid}]'
+        #if len(displayName) > 23:
+            #displayName = displayName[:19] + '...]'
+        pr.draw_text_ex(self.mstr.uiFont, f'{contact["name"]} is {show}', (x+4, y+5), 16, 1, self.mstr.WHITE)
+
+        pr.draw_text_ex(self.mstr.uiFont, f"Says '{status}'", (x+4, y+23), 16, 1, self.mstr.WHITE)
 
     def loadSettings(self):
         with open('apps/chat/index.toml', 'rb') as file:
             self.settings = tomllib.load(file)['settings']
-            print(self.settings)
 
     def loadAddressBook(self):
         with open('user/address_book/address_book.yaml', 'r') as file:
             self.addressBook = yaml.safe_load(file)
+    
+    def receiveMessage(self, con, event):
+        print('con', type(con))
+        print('event', type(event))
+        print(event.getType())
+        if event.getType() == 'chat' and event.getBody() is not None:
+            event.get
+            #get from returns wack address with resouce, get stripped is usual node@domain.com
+            self.chatMessages.append((self.xmppManager.roster.getName(event.getFrom().getStripped()), event.getBody()))
+        elif event.getType() == 'error':
+            print('---> ERROR: ', event.getBody())
+
+    def startChat(self, jid):
+        self.state = 'Chat'
+        self.chatJid = jid
+        self.chatContact = self.xmppManager.contacts[jid]
+        self.chatMessages = []
 
     def update(self):
-        pass
+        self.xmppManager.process()
+        if self.state == 'Conversations':
+            if pr.is_key_pressed(pr.KEY_DOWN):
+                self.conversationIndex = (self.conversationIndex+1)%len(self.xmppManager.contacts.keys())
+            elif pr.is_key_pressed(pr.KEY_UP):
+                self.conversationIndex = (self.conversationIndex-1)%len(self.xmppManager.contacts.keys())
+
+            if pr.is_key_pressed(pr.KEY_ENTER):
+                self.startChat(self.xmppManager.contactJids[self.conversationIndex])
+
+        #print(self.xmppManager.contacts.getStatus('jamestulk@jabbers.one'))
 
     def draw(self):
         pr.draw_texture(self.background, 0, 0, pr.WHITE)
         if self.state == 'Conversations': #go through every contact 
-            for i, conversation in enumerate(self.conversations):
-                conversation.draw(10, 55+(i*50))
+            pr.draw_line_ex((10, 40), (240, 40), 4.0, self.mstr.WHITE)
+            pr.draw_text_ex(self.pixelFontHeading, 'Conversations', (10, 8), 24, 1, self.mstr.WHITE)
+            pr.draw_text_ex(self.mstr.uiFont, '>', (0, 65+(self.conversationIndex*50)), 16, 1, self.mstr.WHITE)
+            for i, jid in enumerate(self.xmppManager.contacts.keys()):
+                self.drawConversation(10, 55+(i*50), jid)
+        elif self.state == 'Chat':
+            pr.draw_line_ex((10, 40), (240, 40), 4.0, self.mstr.WHITE)
+            pr.draw_text_ex(self.pixelFontHeading, self.chatContact['name'], (10, 8), 24, 1, self.mstr.WHITE)
+            pr.draw_text_ex(self.mstr.uiFont, f'Currently {self.determineDisplayShow(self.chatContact)}',
+                            (10, 46), 16, 1, self.mstr.WHITE)
+            
+            for i, (sender, body) in enumerate(reversed(self.chatMessages)):
+                pr.draw_text_ex(self.mstr.uiFont, f'{sender}: {body}', (10, 280-(10*i)), 16, 1, self.mstr.WHITE)
+
 
     def close(self):
         pr.unload_texture(self.background)
+
+        self.xmppManager.closeClient()

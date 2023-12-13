@@ -31,7 +31,7 @@ class MainWindow:
     def loadDefaults(self):
         self.uiFont = pr.load_font_ex('ui/fonts/LSANS.ttf', 16, None, 0)
         #self.headingFont = pr.load_font_ex('ui/fonts/yeoman/YeomanJack.otf', 32, None, 0)
-        self.headingFontOblique = pr.load_font_ex('ui/fonts/yeoman/YeomanJackTwoToneItalic.otf', 30, None, 0)
+        self.headingFontOblique = pr.load_font_ex('ui/fonts/YeomanJackTwoToneItalic.otf', 30, None, 0)
         self.headingFont = pr.load_font_ex('ui/fonts/toxigenesis.otf', 44, None, 0)
         self.monoFont = pr.load_font_ex('ui/fonts/consola.ttf', 14, None, 0)
         self.terminalFont = pr.load_font_ex('ui/fonts/courbd.ttf', 16, None, 0)
