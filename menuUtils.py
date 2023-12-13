@@ -90,7 +90,6 @@ class TextLogger:
                 self.text = self.text[:-1]
             else:
                 if pr.is_key_down(pr.KEY_RIGHT_SHIFT):
-                    print('yay')
                     returnedText = returnedText.upper()
                 self.text += returnedText
 
