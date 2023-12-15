@@ -1,7 +1,7 @@
 import pyray as pr
 import apps.chat.xmppManager as xmppManager
 import menuUtils as mu
-import tomllib, yaml
+import tomllib, yaml, textwrap
 
 class ChatObject:
 
@@ -9,6 +9,8 @@ class ChatObject:
                           'xa': 'out D:',
                           'dnd': 'busy :|',
                           'away': 'away :('}
+    
+    textWrapper = textwrap.TextWrapper(width=20)
     
     def __init__(self, mstr, targetJid):
         self.mstr = mstr
@@ -32,17 +34,28 @@ class ChatObject:
                         self.messages.append(message)
                 except TypeError: #it seems like reading file b4 hand to see if it is empty makes it so u cannot safe_load??
                     pass #so instead just catching the error
-                print(self.messages)
         except FileNotFoundError:
             with open('apps/chat/chatHistories/'+self.targetJid+'.yaml', 'w') as file:
                 pass
 
     def receiveMessageEvent(self, event):
+        # for node in (event, *event.getChildren()):
+        #     print('--->Name', node.getName())
+        #     print('--->Data', node.getData())
+        #     print('--->CData', node.getCDATA())
+        #     print('--->Attrs', node.getAttrs())
+        #     print('--->Space', node.getNamespace())
         self.messages.append((self.targetName, event.getBody()))
 
     def sendMessage(self, msg):
         self.xmppManager.sendMessage(msg, self.targetJid)
         self.messages.append(('You', msg))
+    
+    def sendActiveInChatMarker(self):
+        self.xmppManager.sendActiveInChatMarker(self.targetJid)
+
+    def sendInactiveInChatMarker(self):
+        self.xmppManager.sendInactiveInChatMarker(self.targetJid)
 
     @property
     def formattedShow(self):
@@ -57,7 +70,8 @@ class ChatObject:
     def formattedMessages(self):
         formattedMessages = []
         for sender,body in self.messages:
-            formattedMessages.append(f'{sender}: {body}')
+            body = ChatObject.textWrapper.wrap(body)
+            formattedMessages.append((f'{sender}: {body[0]}', *body[1:]))
         return formattedMessages
     
     def update(self):
@@ -68,7 +82,9 @@ class ChatObject:
     def close(self):
         output = ''
         for name, message in self.messages:
-            output += f'- [{name}, {message}]\n'
+            name = name.replace("'", "''")
+            message = message.replace("'", "''")
+            output += f"- ['{name}', '{message}']\n"
         with open('apps/chat/chatHistories/'+self.targetJid+'.yaml', 'w') as file:
             file.write(output)
 
@@ -85,8 +101,8 @@ class App:
                                                    self.settings['xmpp']['server'])
         
         self.xmppManager.openClient()
-        self.xmppManager.sendUnavailablePresence('jamestulk@jabbers.one')#, 'Hello!', show='dnd')
         self.xmppManager.registerHandlers(self.handlePresence, self.handleMessage)
+        self.xmppManager.sendPresenceToAll(status=self.settings['xmpp']['onlineStatus'])
 
         self.state = 'Conversations' #app should start showing the lsit of contacts
         self.conversationIndex = 0
@@ -113,10 +129,15 @@ class App:
         for jid in self.xmppManager.contactJids:
             self.chatObjects[jid] = ChatObject(self, jid)
 
-        print(self.chatObjects)
+    def handleIq(self, con, event):
+        for node in (event, *event.getChildren()):
+            print('--->Name', node.getName())
+            print('--->Data', node.getData())
+            print('--->CData', node.getCDATA())
+            print('--->Attrs', node.getAttrs())
+            print('--->Space', node.getNamespace())
 
     def handlePresence(self, con, event):
-        print('-->',self.xmppManager.roster.getShow('jamestulk@jabbers.one'))
         if event.getFrom().getStripped() != self.xmppManager.address:
             self.xmppManager.updateContacts()
             self.chatObjects[event.getFrom().getStripped()].update()
@@ -166,8 +187,16 @@ class App:
         self.state = 'Chat'
         self.currentChatObject = self.chatObjects[jid]
         self.chatJid = jid
-        self.xmppManager.sendOnlinePresence(jid, self.settings['xmpp']['onlineStatus'], show='available')
+        self.currentChatObject.sendActiveInChatMarker()
         self.textLogger.start()
+        self.xmppManager.queryCapacities(self.chatJid)
+
+    def endChat(self):
+        self.state = 'Conversations'
+        self.currentChatObject.sendInactiveInChatMarker()
+        self.currentChatObject = None
+        self.chatJid = None
+        self.textLogger.stop()
 
     def sendMessageInCurrentChat(self, msg):
         self.chatMessages.append((self.xmppManager.username, msg))
@@ -190,9 +219,7 @@ class App:
                 self.textLogger.reset()
             
             if pr.is_key_pressed(pr.KEY_UP):
-                self.state = 'Conversations'
-                self.textLogger.stop()
-                print('yay!')
+                self.endChat()
 
         #print(self.xmppManager.contacts.getStatus('jamestulk@jabbers.one'))
 
@@ -213,8 +240,14 @@ class App:
             pr.draw_rectangle_rounded_lines(pr.Rectangle(10,270, 220, 40), 0.4, 2, 1, self.mstr.WHITE)
             pr.draw_text_ex(self.mstr.uiFont, self.textLogger.getText(), (10, 270), 16, 1, self.mstr.WHITE)
 
-            for i, message in enumerate(reversed(self.currentChatObject.formattedMessages)):
-                pr.draw_text_ex(self.mstr.uiFont, message, (10, 250-(12*i)), 16, 1, self.mstr.WHITE)
+            i = 0
+            for message in reversed(self.currentChatObject.formattedMessages):
+                for messageLine in reversed(message):
+                    if 250-(12*i) < 50:
+                        break #if the message is going to be drawn over the heading
+                    pr.draw_text_ex(self.mstr.uiFont, messageLine, (10, 250-(12*i)), 16, 1, self.mstr.WHITE)
+                    i += 1
+                
 
 
     def close(self):
@@ -223,5 +256,5 @@ class App:
         for jid, chatObject in self.chatObjects.items():
             chatObject.close()
 
-        self.xmppManager.sendPresenceToAll(self.settings['xmpp']['offlineStatus'], show='away')
+        self.xmppManager.sendOfflinePresenceToAll(status=self.settings['xmpp']['offlineStatus'])
         self.xmppManager.closeClient()
